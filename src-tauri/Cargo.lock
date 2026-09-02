@@ -2937,7 +2937,7 @@ dependencies = [
 
 [[package]]
 name = "quiet"
-version = "0.1.0"
+version = "2.0.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -2946,6 +2946,7 @@ dependencies = [
  "tauri-plugin-global-shortcut",
  "tauri-plugin-sql",
  "window-vibrancy 0.5.3",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

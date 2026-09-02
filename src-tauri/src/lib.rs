@@ -1,10 +1,89 @@
+use std::sync::Mutex;
+
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    Manager, WebviewWindow,
+    Manager, State, WebviewWindow,
 };
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 use tauri_plugin_sql::{Migration, MigrationKind};
+
+/// The window that had focus immediately before Quiet was summoned.
+///
+/// Captured before showing our own window, because once we take focus the
+/// information is gone. This is what lets Esc hand the keyboard back without
+/// hiding the note.
+#[derive(Default)]
+struct PrevFocus(Mutex<isize>);
+
+#[cfg(target_os = "windows")]
+fn foreground_window() -> isize {
+    use windows_sys::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
+    unsafe { GetForegroundWindow() as isize }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn foreground_window() -> isize {
+    0
+}
+
+/// Return the keyboard to the app that had it, leaving our window visible.
+///
+/// Windows refuses SetForegroundWindow from a process that does not own the
+/// foreground, unless the calling thread is attached to the current foreground
+/// thread — hence the AttachThreadInput dance. Without it this silently does
+/// nothing about half the time.
+#[tauri::command]
+fn back_focus(prev: State<'_, PrevFocus>) -> bool {
+    #[cfg(target_os = "windows")]
+    {
+        use windows_sys::Win32::Foundation::HWND;
+        use windows_sys::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
+        use windows_sys::Win32::UI::WindowsAndMessaging::{
+            GetForegroundWindow, GetWindow, GetWindowThreadProcessId, IsWindow, IsWindowVisible,
+            SetForegroundWindow, GW_HWNDNEXT,
+        };
+
+        let stored = *prev.0.lock().unwrap();
+        let mut target = stored as HWND;
+
+        unsafe {
+            // The remembered window may have been closed since. Fall back to
+            // the next visible window below ours in the Z-order.
+            if target.is_null() || IsWindow(target) == 0 || IsWindowVisible(target) == 0 {
+                let mut h = GetWindow(GetForegroundWindow(), GW_HWNDNEXT);
+                while !h.is_null() {
+                    if IsWindowVisible(h) != 0 {
+                        break;
+                    }
+                    h = GetWindow(h, GW_HWNDNEXT);
+                }
+                target = h;
+            }
+            if target.is_null() {
+                return false;
+            }
+
+            let fg = GetForegroundWindow();
+            let fg_thread = GetWindowThreadProcessId(fg, std::ptr::null_mut());
+            let this_thread = GetCurrentThreadId();
+            let attached =
+                fg_thread != this_thread && AttachThreadInput(this_thread, fg_thread, 1) != 0;
+
+            let ok = SetForegroundWindow(target) != 0;
+
+            if attached {
+                AttachThreadInput(this_thread, fg_thread, 0);
+            }
+            return ok;
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = prev;
+        false
+    }
+}
 
 /// Bring the note window back and put the caret in it.
 ///
@@ -40,6 +119,8 @@ pub fn run() {
     let summon_shortcut = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyN);
 
     tauri::Builder::default()
+        .manage(PrevFocus::default())
+        .invoke_handler(tauri::generate_handler![back_focus])
         .plugin(
             tauri_plugin_sql::Builder::default()
                 .add_migrations("sqlite:quiet.db", migrations())
@@ -53,6 +134,11 @@ pub fn run() {
                         return;
                     }
                     if shortcut == &summon_shortcut {
+                        // Capture the outgoing foreground window BEFORE we
+                        // steal focus, or Esc has nothing to hand back to.
+                        if let Some(state) = app.try_state::<PrevFocus>() {
+                            *state.0.lock().unwrap() = foreground_window();
+                        }
                         if let Some(w) = app.get_webview_window("main") {
                             summon(&w);
                         }

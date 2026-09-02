@@ -4,9 +4,22 @@
  * transparent glass washed the text out over a bright video. --glass-alpha is
  * therefore floored in Settings rather than allowed to run to zero.
  */
+
+/*
+ * Registering --switcher-w as a real <length> is what lets the panel slide with
+ * a plain CSS transition. An unregistered custom property is just a string and
+ * cannot be interpolated, which is why the first version had to drive it by
+ * hand from requestAnimationFrame — and why it juddered.
+ */
+@property --switcher-w {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+
 :root {
   /* Dark grey glass, one blue. The blue is the only colour in the app:
-     caret, active-note bar, selection, slider. Everything else is grey. */
+     caret, title, active-note bar, selection, slider. Everything else is grey. */
   --blue: #3b6fd4;
   /* A lighter step for small blue text. #3b6fd4 is ~3.9:1 on this glass:
      fine for the large bold title, under AA for 12px switcher rows. */
@@ -16,13 +29,30 @@
   --hairline: rgba(255, 255, 255, 0.14);
   --text: #f2f2f0;
   --text-dim: #8d8d8a;
+  --text-faint: #5f5f5d;
   --accent: var(--blue);
   --caret: var(--blue);
   --title-size: 26px;
   --body-size: 13.5px;
-  --switcher-w: 110px;
-  --pad: 20px;
+
+  /* How wide the panel currently is. Transitioned, never set per-frame. */
+  --switcher-w: 0px;
+  /* The window's width with the panel closed, in px, measured once when the
+     panel opens. Only meaningful while :root.reserved is set. */
+  --app-base: 0px;
+  --slide: 200ms cubic-bezier(0.22, 0.72, 0.24, 1);
+
+  /* Text sits high and close to the left edge; the window has no title bar to
+     balance against, so symmetric padding just reads as wasted space. */
+  --pad-top: 13px;
+  --pad-left: 15px;
+  --pad-right: 18px;
+  --pad-bottom: 18px;
   --radius: 10px;
+}
+
+html {
+  transition: --switcher-w var(--slide);
 }
 
 * {
@@ -48,6 +78,7 @@ body {
   user-select: none;
 }
 
+/* The visible window: one pane of glass, nothing outside it. */
 .app {
   display: flex;
   height: 100%;
@@ -57,32 +88,104 @@ body {
   overflow: hidden;
 }
 
+/* While the panel is sliding, the OS window is already at its full open width
+   but the glass is not. Sizing from a measured pixel base rather than from the
+   viewport is the point: 100vw updates whenever the compositor gets around to
+   the resize, and anything derived from it flashes at the wrong width for a
+   frame. This value does not move when the window does. */
+:root.reserved .app {
+  width: calc(var(--app-base) + var(--switcher-w));
+}
+
 /* --- switcher ---------------------------------------------------------- */
 
-/* Docked to the left. The OS window grows leftward by exactly this width, so
-   the editor never moves on screen and the text never reflows. */
+/* Docked to the left, inside the same pane of glass. Sunk a touch darker so
+   the list reads as behind the writing surface rather than beside it. */
 .switcher {
   flex: 0 0 var(--switcher-w);
   width: var(--switcher-w);
-  padding: var(--pad) 0 var(--pad) 12px;
+  display: flex;
+  flex-direction: column;
   border-right: 1px solid var(--hairline);
+  background: rgba(0, 0, 0, 0.16);
+  /* Clips the fixed-width track while the outer width animates, so the titles
+     never re-wrap on the way in. */
+  overflow: hidden;
+}
+
+/* The only place the app name appears. It costs nothing in the resting state,
+   because there the whole panel is zero pixels wide. */
+.switcher-brand {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: var(--pad-top) 12px 10px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.switcher-brand::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  background: var(--blue);
+  flex: 0 0 auto;
+}
+
+.switcher-track {
+  flex: 1 1 auto;
+  padding-bottom: var(--pad-bottom);
   overflow-y: auto;
   scrollbar-width: none;
 }
 
 .switcher-item {
   position: relative;
-  padding: 7px 10px 7px 10px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 10px 6px 14px;
   font-size: 12px;
   color: rgba(109, 155, 245, 0.55);
   white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
   cursor: pointer;
+  transition: color 120ms ease;
+}
+
+.switcher-item:hover {
+  color: rgba(109, 155, 245, 0.8);
 }
 
 .switcher-item.active {
   color: var(--blue-soft);
+}
+
+/* Ctrl+1..9 jumps straight to a note; without the number printed here nobody
+   would ever discover that. */
+.switcher-num {
+  flex: 0 0 auto;
+  width: 9px;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+}
+
+.switcher-item.active .switcher-num {
+  color: var(--text-dim);
+}
+
+.switcher-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* An accent bar, never a filled background — a filled row would read as a
@@ -95,6 +198,7 @@ body {
   transform: translateY(-50%);
   width: 2px;
   height: 15px;
+  border-radius: 0 2px 2px 0;
   background: var(--accent);
 }
 
@@ -121,7 +225,7 @@ body {
 .cm-scroller {
   font-family: "Cascadia Mono", "Consolas", ui-monospace, monospace;
   line-height: 1.75;
-  padding: var(--pad);
+  padding: var(--pad-top) var(--pad-right) var(--pad-bottom) var(--pad-left);
   overflow-y: auto;
   scrollbar-width: none;
 }
@@ -133,7 +237,7 @@ body {
   /* !important is required: CodeMirror injects its own stylesheet at
      runtime, so it lands after this file in the head and would otherwise
      win on equal specificity. Without a drawSelection extension the native
-     caret is what's drawn, so this is the rule that actually decides. */
+     caret is what is drawn, so this is the rule that actually decides. */
   caret-color: var(--caret) !important;
   line-height: 1.75;
 }
@@ -149,8 +253,9 @@ body {
   font-family: "Segoe UI", system-ui, sans-serif;
   font-size: var(--title-size);
   font-weight: 700;
-  line-height: 1.3;
-  padding-bottom: 10px !important;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  padding-bottom: 12px !important;
   color: var(--blue);
 }
 
@@ -173,7 +278,7 @@ body {
 
 .cm-selectionBackground,
 .cm-editor ::selection {
-  background: rgba(59, 111, 212, 0.30) !important;
+  background: rgba(59, 111, 212, 0.3) !important;
 }
 
 /* --- resize handles ---------------------------------------------------- */
@@ -197,11 +302,12 @@ body {
   position: fixed;
   right: 14px;
   bottom: 14px;
-  width: 210px;
-  padding: 14px;
+  width: 214px;
+  padding: 14px 15px;
   background: rgba(var(--glass), 0.96);
   border: 1px solid var(--hairline);
   border-radius: 8px;
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.4);
   font-size: 11.5px;
   color: var(--text-dim);
   z-index: 20;
@@ -209,7 +315,7 @@ body {
 
 .settings label {
   display: block;
-  margin-bottom: 11px;
+  margin-bottom: 12px;
 }
 
 .settings label:last-child {
@@ -219,7 +325,7 @@ body {
 .settings input[type="range"],
 .settings select {
   width: 100%;
-  margin-top: 5px;
+  margin-top: 6px;
   accent-color: var(--blue);
   background: transparent;
   color: var(--text);
@@ -239,6 +345,7 @@ body {
   font-size: 11px;
   color: var(--text-dim);
   pointer-events: none;
+  white-space: nowrap;
 }
 
 /* Shown while a delete is armed. The one place the app raises its voice. */

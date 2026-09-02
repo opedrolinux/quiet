@@ -6,7 +6,8 @@ import { useHotkeys } from "./hooks/useHotkeys";
 import { useNotes } from "./hooks/useNotes";
 import { useSettings } from "./hooks/useSettings";
 import { getSetting, setSetting } from "./lib/db";
-import { SWITCHER_W, hideWindow, startDrag, startResize, widenLeft } from "./lib/window";
+import { backFocus, hideWindow, startDrag, startResize } from "./lib/window";
+import { useSwitcherPanel } from "./hooks/useSwitcherPanel";
 
 /** How long the switcher stays out after the last Ctrl+Arrow before retracting. */
 const RETRACT_MS = 1000;
@@ -15,7 +16,7 @@ export default function App() {
   const notes = useNotes();
   const { settings, update } = useSettings();
 
-  const [switcherOpen, setSwitcherOpen] = useState(false);
+  const { mounted: switcherOpen, setOpen } = useSwitcherPanel();
   const [pinned, setPinned] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [hint, setHint] = useState(false);
@@ -25,17 +26,7 @@ export default function App() {
   armedRef.current = armed;
   const armTimer = useRef<number | null>(null);
 
-  const openRef = useRef(false);
   const retract = useRef<number | null>(null);
-
-  // The window grows and shrinks on its left edge to match, so the editor's
-  // position on screen never changes.
-  const setOpen = useCallback(async (next: boolean) => {
-    if (openRef.current === next) return;
-    openRef.current = next;
-    setSwitcherOpen(next);
-    await widenLeft(next ? SWITCHER_W : -SWITCHER_W);
-  }, []);
 
   const peek = useCallback(() => {
     void setOpen(true);
@@ -57,7 +48,16 @@ export default function App() {
       void notes.cycle(-1);
       peek();
     },
-    create: () => void notes.create(),
+    jump: (i) => {
+      const target = notes.notes[i];
+      if (!target) return;
+      void notes.select(target.id);
+      peek();
+    },
+    create: () => {
+      void notes.create();
+      peek();
+    },
     toggleSwitcher: () => {
       const next = !pinnedRef.current;
       setPinned(next);
@@ -79,11 +79,15 @@ export default function App() {
       armTimer.current = window.setTimeout(() => setArmed(false), 3000);
     },
     hide: () => {
+      void notes.flush().then(hideWindow);
+    },
+    backFocus: () => {
+      // Esc closes the settings popover first, if it is open.
       if (showSettings) {
         setShowSettings(false);
         return;
       }
-      void notes.flush().then(hideWindow);
+      void notes.flush().then(backFocus);
     },
     bumpText: (d) => update({ bodySize: settings.bodySize + d }),
   });
@@ -153,7 +157,9 @@ export default function App() {
         <div className="hint warn">Press Ctrl+Shift+D again to delete this note</div>
       )}
       {hint && !armed && (
-        <div className="hint">Alt + drag to move &nbsp;·&nbsp; Ctrl + , for settings</div>
+        <div className="hint">
+          Alt + drag to move &nbsp;·&nbsp; Ctrl+T notes &nbsp;·&nbsp; Ctrl+, settings
+        </div>
       )}
     </>
   );

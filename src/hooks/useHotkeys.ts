@@ -6,8 +6,10 @@ export type Handlers = {
   create: () => void;
   toggleSwitcher: () => void;
   toggleSettings: () => void;
+  jump: (index: number) => void;
   remove: () => void;
   hide: () => void;
+  backFocus: () => void;
   bumpText: (delta: number) => void;
 };
 
@@ -33,6 +35,14 @@ export function useHotkeys(h: Handlers) {
       }
       if (!ctrl) return;
 
+      // Ctrl+1..9 jumps straight to a note, the way every tabbed app does.
+      // Cycling is fine for two or three notes and tedious past that.
+      if (e.key >= "1" && e.key <= "9" && !e.shiftKey && !e.altKey) {
+        e.preventDefault();
+        h.jump(Number(e.key) - 1);
+        return;
+      }
+
       switch (e.key) {
         case "ArrowDown":
           e.preventDefault();
@@ -46,6 +56,11 @@ export function useHotkeys(h: Handlers) {
         case "N":
           e.preventDefault();
           h.create();
+          break;
+        case "h":
+        case "H":
+          // Handled on keyup for the same reason as Escape.
+          e.preventDefault();
           break;
         case "d":
         case "D":
@@ -75,11 +90,20 @@ export function useHotkeys(h: Handlers) {
           break;
       }
     };
+    // Both of these give focus away, so both must wait for keyup — releasing
+    // the key after focus has moved delivers the keyup to the other app.
     const onKeyUp = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      e.preventDefault();
-      e.stopPropagation();
-      h.hide();
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        h.backFocus();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === "h" || e.key === "H")) {
+        e.preventDefault();
+        e.stopPropagation();
+        h.hide();
+      }
     };
 
     window.addEventListener("keydown", onKey, true);

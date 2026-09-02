@@ -1,27 +1,40 @@
+import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { PhysicalPosition, PhysicalSize } from "@tauri-apps/api/dpi";
+import { LogicalSize } from "@tauri-apps/api/dpi";
 
-/** Must match --switcher-w in theme.css. */
-export const SWITCHER_W = 110;
+/**
+ * Open width of the note list, in logical px.
+ *
+ * Wide enough for a number column plus roughly a dozen characters of title.
+ * It is deliberately the only fixed dimension in the app: the original mockup
+ * gave the list 40% of the window, which was the exact complaint that started
+ * the project.
+ */
+export const SWITCHER_W = 124;
 
 export const inTauri = "__TAURI_INTERNALS__" in window;
 
-/**
- * Grow or shrink the OS window on its LEFT edge.
- *
- * The point of moving x by the same amount we change the width is that the
- * right-hand editor keeps its exact screen position: opening the switcher must
- * never reflow the text or shift the caret out from under the user.
- */
-export async function widenLeft(px: number): Promise<void> {
-  if (!inTauri) return;
+export type Metrics = { width: number; height: number };
+
+/** Current outer size in logical (CSS) pixels. */
+export async function readMetrics(): Promise<Metrics | null> {
+  if (!inTauri) return null;
   const w = getCurrentWindow();
   const sf = await w.scaleFactor();
-  const d = Math.round(px * sf);
-  const pos = await w.outerPosition();
-  const size = await w.outerSize();
-  await w.setSize(new PhysicalSize(size.width + d, size.height));
-  await w.setPosition(new PhysicalPosition(pos.x - d, pos.y));
+  const s = await w.outerSize();
+  return { width: s.width / sf, height: s.height / sf };
+}
+
+/**
+ * Resize on the RIGHT edge only — position is never touched.
+ *
+ * The earlier version grew leftward so the editor stayed put on screen, but
+ * that walks the window's x towards (and past) zero. Growing rightward keeps
+ * the window anchored where the user put it.
+ */
+export async function setWidth(width: number, height: number): Promise<void> {
+  if (!inTauri) return;
+  await getCurrentWindow().setSize(new LogicalSize(Math.round(width), Math.round(height)));
 }
 
 export async function startDrag(): Promise<void> {
@@ -31,8 +44,20 @@ export async function startDrag(): Promise<void> {
 
 export async function startResize(dir: string): Promise<void> {
   if (!inTauri) return;
-  // The string form matches Tauri's ResizeDirection serialisation.
   await getCurrentWindow().startResizeDragging(dir as never);
+}
+
+/**
+ * Hand the keyboard back to the app that had it, leaving the note on screen.
+ *
+ * Distinct from hideWindow: the window stays visible and always-on-top, you
+ * just stop typing into it. Falls back to hiding if Windows refuses the
+ * foreground change, so Esc always does *something*.
+ */
+export async function backFocus(): Promise<void> {
+  if (!inTauri) return;
+  const ok = await invoke<boolean>("back_focus").catch(() => false);
+  if (!ok) await hideWindow();
 }
 
 export async function hideWindow(): Promise<void> {

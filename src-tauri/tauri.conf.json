@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Quiet",
-  "version": "0.1.0",
+  "version": "2.0.0",
   "identifier": "com.quiet.notes",
   "build": {
     "beforeDevCommand": "pnpm dev",
@@ -33,6 +33,24 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.ico"]
+    "publisher": "Quiet",
+    "copyright": "Quiet",
+    "shortDescription": "A notes app that gets out of the way.",
+    "longDescription": "Quiet is a frameless, always-on-top note pad for studying. One keystroke in, one keystroke out, no toolbar, no tabs, no chrome.",
+    "category": "Productivity",
+    "icon": [
+      "icons/32x32.png",
+      "icons/64x64.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico",
+      "icons/icon.icns",
+      "icons/icon.png"
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
   }
 }
