@@ -93,3 +93,47 @@ export function acceptsPush(
 export function newNote(now = Date.now()): Note {
   return { id: uuid(), body: "", created_at: now, updated_at: now, deleted_at: null };
 }
+
+/**
+ * The three operations a client's local store has to provide for a sync.
+ *
+ * Narrow on purpose: the desktop implements it over SQLite, the phone over
+ * IndexedDB, and the convergence test over a plain Map — and because all three
+ * drive `applyIncoming` below, the test exercises the code that actually ships
+ * rather than a transcription of it.
+ */
+export type LocalStore = {
+  get(id: string): Promise<LocalNote | undefined>;
+  /** Overwrite with the server's version and mark it settled. */
+  accept(note: Note, serverSeq: number): Promise<void>;
+  /** Clear the dirty flag, but only if the note has not been typed into since. */
+  markPushed(id: string, updatedAt: number, serverSeq: number): Promise<void>;
+};
+
+/**
+ * Fold one page of server rows into a local store.
+ *
+ * Returns the ids whose content actually changed, so a client can tell the
+ * difference between "the server had news" and "the server confirmed what I
+ * already knew" — only the former should disturb what is on screen.
+ */
+export async function applyIncoming(
+  store: LocalStore,
+  incoming: ServerNote[],
+): Promise<string[]> {
+  const changed: string[] = [];
+  for (const note of incoming) {
+    const local = await store.get(note.id);
+    const decision = mergeIncoming(local, note);
+    if (decision.action === "accept") {
+      await store.accept(decision.note, note.server_seq);
+      changed.push(note.id);
+    } else if (decision.action === "cursor-only") {
+      // Our own push, coming back. Settling it here is what stops the note
+      // being pushed again on every single sync, forever.
+      await store.markPushed(note.id, note.updated_at, decision.server_seq);
+    }
+    // "keep-local": ours is newer and unsent; the next push carries it.
+  }
+  return changed;
+}

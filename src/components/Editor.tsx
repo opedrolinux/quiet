@@ -39,10 +39,12 @@ const titleDecoration = ViewPlugin.fromClass(
 type Props = {
   noteId: string | null;
   body: string;
+  /** Bumped when a sync replaced this note's text under us. */
+  rev?: number;
   onChange: (body: string) => void;
 };
 
-export function Editor({ noteId, body, onChange }: Props) {
+export function Editor({ noteId, body, rev = 0, onChange }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const view = useRef<EditorView | null>(null);
   const onChangeRef = useRef(onChange);
@@ -75,8 +77,9 @@ export function Editor({ noteId, body, onChange }: Props) {
     };
   }, []);
 
-  // Replace the document only when the active note actually changes. Doing it
-  // on every body change would fight the user's own typing.
+  // Replace the document only when the active note actually changes, or when
+  // `rev` says a sync overwrote it. Doing it on every body change would fight
+  // the user's own typing.
   useEffect(() => {
     const v = view.current;
     if (!v) return;
@@ -87,7 +90,7 @@ export function Editor({ noteId, body, onChange }: Props) {
     });
     v.focus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [noteId]);
+  }, [noteId, rev]);
 
   return <div className="editor" ref={host} />;
 }

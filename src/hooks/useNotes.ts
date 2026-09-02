@@ -19,6 +19,8 @@ export function useNotes() {
   const [notes, setNotes] = useState<LocalNote[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  /** Bumped when a sync replaced the active note's text; see `reload`. */
+  const [rev, setRev] = useState(0);
 
   // Kept in refs so the flush path never depends on a stale render.
   const pending = useRef<{ id: string; body: string } | null>(null);
@@ -122,7 +124,45 @@ export function useNotes() {
     setActiveId(rows[0].id);
   }, [notes.length]);
 
+  /**
+   * Re-read after a sync landed remote changes.
+   *
+   * `rev` is the delicate part. The editor deliberately only replaces its
+   * document when the note id changes, so that a re-render never yanks text out
+   * from under the caret. That also means a remote edit to the note you are
+   * looking at would be invisible until you switched away and back — so `rev`
+   * is bumped to say "this one really did change underneath you", and only when
+   * there is nothing unsent locally that would be thrown away.
+   */
+  const reload = useCallback(
+    async (changedIds: string[] = []) => {
+      const rows = await listNotes();
+
+      // Every note deleted on another device: keep the app usable rather than
+      // showing an empty editor with no note behind it.
+      if (rows.length === 0) {
+        const id = await createNote();
+        setNotes(await listNotes());
+        setActiveId(id);
+        return;
+      }
+
+      setNotes(rows);
+      const active = activeIdRef.current;
+      if (!active) return;
+
+      if (!rows.some((n) => n.id === active)) {
+        setActiveId(rows[0].id); // deleted elsewhere
+        return;
+      }
+      if (changedIds.includes(active) && pending.current?.id !== active) {
+        setRev((r) => r + 1);
+      }
+    },
+    [],
+  );
+
   const active = notes.find((n) => n.id === activeId) ?? null;
 
-  return { notes, active, activeId, ready, edit, select, cycle, create, remove, flush };
+  return { notes, active, activeId, ready, rev, edit, select, cycle, create, remove, flush, reload };
 }

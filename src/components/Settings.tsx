@@ -1,14 +1,26 @@
+import type { ReactNode } from "react";
 import { MIN_GLASS_ALPHA, type Settings as S } from "../hooks/useSettings";
 
 type Props = {
   settings: S;
   onChange: (patch: Partial<S>) => void;
+  children?: ReactNode;
 };
 
-/** A popover, never a screen. Four controls is the whole surface. */
-export function Settings({ settings, onChange }: Props) {
+/** A popover, never a screen. Sliders, then the one thing that needs typing. */
+export function Settings({ settings, onChange, children }: Props) {
   return (
-    <div className="settings" onMouseDown={(e) => e.preventDefault()}>
+    <div
+      className="settings"
+      onMouseDown={(e) => {
+        // Clicking the panel normally must not pull the caret out of the
+        // editor — but the sign-in fields are useless if they cannot take it,
+        // so those are the exception.
+        const el = e.target as HTMLElement;
+        if (el.tagName === "INPUT" || el.tagName === "BUTTON") return;
+        e.preventDefault();
+      }}
+    >
       <label>
         Opacity
         <input
@@ -42,6 +54,7 @@ export function Settings({ settings, onChange }: Props) {
           onChange={(e) => onChange({ bodySize: Number(e.target.value) })}
         />
       </label>
+      {children}
     </div>
   );
 }

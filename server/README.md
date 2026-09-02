@@ -78,11 +78,26 @@ would otherwise be skipped forever.
 Deletes are tombstones. A row that simply vanished is indistinguishable from one
 a device has not seen yet, and the next pull would resurrect it.
 
+## A constraint of running TypeScript directly
+
+Node *strips* types rather than compiling them, so anything that needs code
+generated for it is a syntax error: no `enum`, no `namespace`, and no
+constructor parameter properties (`constructor(private x: T)`). Write plain
+assignments. `pnpm typecheck` still checks the whole thing properly.
+
 ## Checking it works
 
     pnpm server                    # in one terminal
     node server/smoke.ts           # in another
+    node server/converge.ts
 
-Signs in twice, pushes a note, pulls it back on a second device, forces a
-conflict, checks another account sees none of it, and confirms tombstones and
-input validation.
+`smoke.ts` covers the server: sign-in, push, pull on a second device, conflict
+resolution, account isolation, tombstones and input validation.
+
+`converge.ts` covers the *client* algorithm — two simulated devices editing the
+same note offline, deleting, and catching up from nothing. It drives
+`applyIncoming` from `shared/sync.ts`, the same function the desktop app and the
+phone run, so it tests the shipping logic rather than a copy of it. The two
+checks worth keeping honest are that pushes settle (a note must not re-push on
+every sync forever) and that a tombstone survives repeated exchanges without
+resurrecting.

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Account } from "./components/Account";
 import { Editor, focusEditor } from "./components/Editor";
 import { Settings } from "./components/Settings";
 import { Switcher } from "./components/Switcher";
@@ -8,6 +9,7 @@ import { useSettings } from "./hooks/useSettings";
 import { getSetting, setSetting } from "./lib/db";
 import { backFocus, hideWindow, startDrag, startResize } from "./lib/window";
 import { useSwitcherPanel } from "./hooks/useSwitcherPanel";
+import { useSync } from "./hooks/useSync";
 
 /** How long the switcher stays out after the last Ctrl+Arrow before retracting. */
 const RETRACT_MS = 1000;
@@ -15,6 +17,12 @@ const RETRACT_MS = 1000;
 export default function App() {
   const notes = useNotes();
   const { settings, update } = useSettings();
+
+  // Sync hands back the ids it changed so the editor can be told when the note
+  // currently on screen was rewritten from another device.
+  const reloadRef = useRef(notes.reload);
+  reloadRef.current = notes.reload;
+  const sync = useSync(useCallback((ids: string[]) => void reloadRef.current(ids), []));
 
   const { mounted: switcherOpen, setOpen } = useSwitcherPanel();
   const [pinned, setPinned] = useState(false);
@@ -38,6 +46,21 @@ export default function App() {
 
   const pinnedRef = useRef(false);
   pinnedRef.current = pinned;
+
+  // Push shortly after typing stops. The periodic sweep would get there
+  // eventually, but "eventually" is a bad promise to make about someone's
+  // notes when they are about to pick up their phone.
+  const syncSoon = useRef<number | null>(null);
+  const onEdit = useCallback(
+    (body: string) => {
+      notes.edit(body);
+      if (syncSoon.current !== null) window.clearTimeout(syncSoon.current);
+      syncSoon.current = window.setTimeout(() => {
+        void notes.flush().then(sync.syncNow);
+      }, 2500);
+    },
+    [notes.edit, notes.flush, sync.syncNow],
+  );
 
   useHotkeys({
     next: () => {
@@ -79,7 +102,10 @@ export default function App() {
       armTimer.current = window.setTimeout(() => setArmed(false), 3000);
     },
     hide: () => {
-      void notes.flush().then(hideWindow);
+      void notes.flush().then(() => {
+        void sync.syncNow();
+        return hideWindow();
+      });
     },
     backFocus: () => {
       // Esc closes the settings popover first, if it is open.
@@ -87,7 +113,10 @@ export default function App() {
         setShowSettings(false);
         return;
       }
-      void notes.flush().then(backFocus);
+      void notes.flush().then(() => {
+        void sync.syncNow();
+        return backFocus();
+      });
     },
     bumpText: (d) => update({ bodySize: settings.bodySize + d }),
   });
@@ -135,7 +164,8 @@ export default function App() {
         <Editor
           noteId={notes.activeId}
           body={notes.active?.body ?? ""}
-          onChange={notes.edit}
+          rev={notes.rev}
+          onChange={onEdit}
         />
       </div>
 
@@ -152,7 +182,17 @@ export default function App() {
         />
       ))}
 
-      {showSettings && <Settings settings={settings} onChange={update} />}
+      {showSettings && (
+        <Settings settings={settings} onChange={update}>
+          <Account
+            state={sync.state}
+            onSetUrl={(url) => void sync.setUrl(url)}
+            onSignIn={(email) => void sync.signIn(email)}
+            onCancel={sync.cancelSignIn}
+            onSignOut={() => void sync.signOut()}
+          />
+        </Settings>
+      )}
       {armed && (
         <div className="hint warn">Press Ctrl+Shift+D again to delete this note</div>
       )}

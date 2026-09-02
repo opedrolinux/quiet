@@ -337,6 +337,115 @@ body {
   border: none;
 }
 
+/* --- account ----------------------------------------------------------- */
+
+/* Sign-in lives at the bottom of the settings popover, behind a hairline. It is
+   the only part of the app that asks for typing, so it stays folded away. */
+.account {
+  margin-top: 13px;
+  padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+}
+
+.account-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+/* Sync state as one dot: the app should never need a sentence to say it is
+   working. Colour only appears when something is wrong. */
+.account-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-faint);
+}
+.account-dot.idle { background: var(--blue); }
+.account-dot.syncing { background: var(--blue-soft); animation: pulse 1s ease-in-out infinite; }
+.account-dot.offline { background: #7a6a4a; }
+.account-dot.error { background: #e8a0a0; }
+
+@keyframes pulse {
+  50% { opacity: 0.3; }
+}
+
+/* Reduced motion turns the pulse into a steady dot rather than nothing, so the
+   state is still legible. */
+@media (prefers-reduced-motion: reduce) {
+  .account-dot.syncing { animation: none; opacity: 0.6; }
+}
+
+.account-line {
+  color: var(--text);
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.account-status {
+  margin-top: 4px;
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+
+/* The sign-in code, shown so you can match it against the email. */
+.account-code {
+  margin: 6px 0 2px;
+  font-family: "Cascadia Mono", "Consolas", ui-monospace, monospace;
+  font-size: 17px;
+  letter-spacing: 0.16em;
+  color: var(--blue-soft);
+}
+
+.account-input {
+  display: block;
+  width: 100%;
+  margin-bottom: 6px;
+  padding: 5px 7px;
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text);
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 11.5px;
+}
+
+.account-input::placeholder {
+  color: var(--text-faint);
+}
+
+.account-input:focus {
+  outline: none;
+  border-color: var(--blue);
+}
+
+/* The only button in Quiet. It exists because "send me a link" has no keystroke
+   that would make sense to memorise. */
+.account-btn {
+  width: 100%;
+  margin-top: 2px;
+  padding: 5px;
+  background: transparent;
+  color: var(--blue-soft);
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.account-btn:hover:not(:disabled) {
+  border-color: var(--blue);
+}
+
+.account-btn:disabled {
+  color: var(--text-faint);
+  cursor: default;
+}
+
 .hint {
   position: fixed;
   left: 50%;
