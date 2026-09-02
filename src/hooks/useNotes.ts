@@ -4,7 +4,7 @@ import {
   deleteNote,
   listNotes,
   saveNote,
-  type Note,
+  type LocalNote,
 } from "../lib/db";
 
 const SAVE_DEBOUNCE_MS = 400;
@@ -16,14 +16,14 @@ const SAVE_DEBOUNCE_MS = 400;
  * has to flush: switching notes, hiding the window, and closing it.
  */
 export function useNotes() {
-  const [notes, setNotes] = useState<Note[]>([]);
-  const [activeId, setActiveId] = useState<number | null>(null);
+  const [notes, setNotes] = useState<LocalNote[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
   // Kept in refs so the flush path never depends on a stale render.
-  const pending = useRef<{ id: number; body: string } | null>(null);
+  const pending = useRef<{ id: string; body: string } | null>(null);
   const timer = useRef<number | null>(null);
-  const activeIdRef = useRef<number | null>(null);
+  const activeIdRef = useRef<string | null>(null);
   activeIdRef.current = activeId;
 
   const flush = useCallback(async () => {
@@ -87,7 +87,7 @@ export function useNotes() {
   }, [flush]);
 
   const select = useCallback(
-    async (id: number) => {
+    async (id: string) => {
       if (id === activeIdRef.current) return;
       await flush();
       setActiveId(id);

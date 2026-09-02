@@ -37,7 +37,7 @@ const titleDecoration = ViewPlugin.fromClass(
 );
 
 type Props = {
-  noteId: number | null;
+  noteId: string | null;
   body: string;
   onChange: (body: string) => void;
 };

@@ -1,11 +1,11 @@
-import type { Note } from "../lib/db";
-import { deriveTitle } from "../lib/title";
+import type { LocalNote } from "../lib/db";
+import { deriveTitle } from "../../shared/title";
 import { SWITCHER_W } from "../lib/window";
 
 type Props = {
-  notes: Note[];
-  activeId: number | null;
-  onSelect: (id: number) => void;
+  notes: LocalNote[];
+  activeId: string | null;
+  onSelect: (id: string) => void;
 };
 
 export function Switcher({ notes, activeId, onSelect }: Props) {

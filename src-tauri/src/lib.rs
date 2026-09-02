@@ -96,12 +96,13 @@ fn summon(window: &WebviewWindow) {
 }
 
 fn migrations() -> Vec<Migration> {
-    vec![Migration {
-        version: 1,
-        description: "create notes and settings",
-        // No title column: the title is always derived from the first line of
-        // the body, so storing it separately could only ever drift.
-        sql: "CREATE TABLE IF NOT EXISTS notes (
+    vec![
+        Migration {
+            version: 1,
+            description: "create notes and settings",
+            // No title column: the title is always derived from the first line
+            // of the body, so storing it separately could only ever drift.
+            sql: "CREATE TABLE IF NOT EXISTS notes (
                 id         INTEGER PRIMARY KEY,
                 body       TEXT NOT NULL DEFAULT '',
                 created_at INTEGER NOT NULL,
@@ -111,8 +112,51 @@ fn migrations() -> Vec<Migration> {
                 key   TEXT PRIMARY KEY,
                 value TEXT NOT NULL
               );",
-        kind: MigrationKind::Up,
-    }]
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 2,
+            description: "uuid note ids and sync bookkeeping",
+            // Autoincrement ids cannot survive sync: two devices offline both
+            // mint the same next id for different notes and collide the moment
+            // they meet. Ids become client-generated UUIDs instead, minted here
+            // for the notes that already exist.
+            //
+            // deleted_at rather than DELETE, because a row that simply vanishes
+            // is indistinguishable from one this device has not seen yet — the
+            // deletion would be undone by the next pull.
+            //
+            // dirty marks local edits not yet acknowledged by the server, and
+            // server_seq is the server's own monotonic counter, which is what
+            // pulls page through. Wall clocks are for conflict resolution only;
+            // they are never trusted for ordering.
+            sql: "CREATE TABLE notes_v2 (
+                id         TEXT PRIMARY KEY,
+                body       TEXT NOT NULL DEFAULT '',
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                deleted_at INTEGER,
+                dirty      INTEGER NOT NULL DEFAULT 1,
+                server_seq INTEGER NOT NULL DEFAULT 0
+              );
+              INSERT INTO notes_v2 (id, body, created_at, updated_at)
+                SELECT lower(
+                         hex(randomblob(4)) || '-' ||
+                         hex(randomblob(2)) || '-4' ||
+                         substr(hex(randomblob(2)), 2) || '-' ||
+                         substr('89ab', abs(random()) % 4 + 1, 1) ||
+                         substr(hex(randomblob(2)), 2) || '-' ||
+                         hex(randomblob(6))
+                       ),
+                       body, created_at, updated_at
+                FROM notes;
+              DROP TABLE notes;
+              ALTER TABLE notes_v2 RENAME TO notes;
+              CREATE INDEX idx_notes_updated ON notes (updated_at DESC);
+              CREATE INDEX idx_notes_dirty ON notes (dirty) WHERE dirty = 1;",
+            kind: MigrationKind::Up,
+        },
+    ]
 }
 
 pub fn run() {
