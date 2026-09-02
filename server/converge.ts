@@ -1,16 +1,18 @@
 /**
  * Convergence test: two devices, one server, no React.
  *
- * The simulated client below is deliberately thin — it delegates the actual
- * decisions to `applyIncoming` from shared/sync.ts, which is the same function
- * the desktop app and the phone run. So this exercises the shipping logic
- * rather than a re-implementation of it that could quietly disagree.
+ * The simulated device below is deliberately thin: it supplies storage and
+ * nothing else, and hands the actual exchange to `runSync` from
+ * shared/engine.ts — the same function the desktop app and the phone call. So
+ * this exercises the shipping logic rather than a re-implementation of it that
+ * could quietly disagree.
  *
  *   node server/converge.ts [base-url]
  */
 import { readFileSync } from "node:fs";
-import { applyIncoming, newNote, type LocalStore } from "../shared/sync.ts";
-import type { LocalNote, Note, SyncResponse } from "../shared/types.ts";
+import { runSync } from "../shared/engine.ts";
+import { newNote, type LocalStore } from "../shared/sync.ts";
+import type { LocalNote, Note } from "../shared/types.ts";
 
 const BASE = process.argv[2] ?? "http://127.0.0.1:8787";
 const MAIL_LOG = process.env.QUIET_MAIL_LOG ?? "server/data/magic-links.txt";
@@ -56,7 +58,7 @@ class Device {
     this.token = token;
   }
 
-  private store: LocalStore = {
+  store: LocalStore = {
     get: async (id) => this.notes.get(id),
     accept: async (note, server_seq) => {
       this.notes.set(note.id, { ...note, dirty: false, server_seq });
@@ -88,27 +90,26 @@ class Device {
   }
 
   async sync(): Promise<void> {
-    for (let page = 0; page < 20; page++) {
-      const outgoing: Note[] = [...this.notes.values()]
-        .filter((n) => n.dirty)
-        .map(({ id, body, created_at, updated_at, deleted_at }) => ({
-          id,
-          body,
-          created_at,
-          updated_at,
-          deleted_at,
-        }));
-
-      const res: SyncResponse & { more?: boolean } = await api("/sync", {
-        method: "POST",
-        headers: { authorization: `Bearer ${this.token}` },
-        body: JSON.stringify({ since: this.seq, notes: outgoing }),
-      });
-
-      await applyIncoming(this.store, res.notes);
-      this.seq = res.seq;
-      if (!res.more) return;
-    }
+    // The real loop, from shared/engine.ts — the same code the desktop app and
+    // the phone run. Only the storage underneath it is simulated.
+    const outcome = await runSync(BASE, this.token, {
+      getSeq: async () => this.seq,
+      setSeq: async (seq) => {
+        this.seq = seq;
+      },
+      dirty: async () =>
+        [...this.notes.values()]
+          .filter((n) => n.dirty)
+          .map(({ id, body, created_at, updated_at, deleted_at }): Note => ({
+            id,
+            body,
+            created_at,
+            updated_at,
+            deleted_at,
+          })),
+      store: this.store,
+    });
+    if (!outcome.ok) throw new Error(`${this.name}: sync failed — ${outcome.detail}`);
   }
 
   /** What the user would actually see in the switcher. */

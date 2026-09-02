@@ -3,7 +3,7 @@ import type {
   AuthStatusResponse,
   Note,
   SyncResponse,
-} from "../../shared/types";
+} from "./types.ts";
 
 /**
  * Talking to the sync server.

@@ -4,6 +4,15 @@ A notes app for studying: it floats over the course video you're watching,
 costs one keystroke to enter and one to leave, and shows nothing on screen
 except your text.
 
+Three programs, one set of notes:
+
+| | |
+|---|---|
+| `src/` + `src-tauri/` | the Windows app — the overlay this project is about |
+| `mobile/` | the phone, an installable web app ([README](mobile/README.md)) |
+| `server/` | accounts and sync, zero dependencies ([README](server/README.md)) |
+| `shared/` | what all three must agree on: the note shape, the merge rules, the sync loop |
+
 The design target is in `design/` — `01-resting.png` (how it looks while you
 write) and `02-switcher.png` (the note list open).
 
@@ -22,6 +31,10 @@ write) and `02-switcher.png` (the note list open).
 | `Ctrl+,` | Settings |
 | `Ctrl+=` / `Ctrl+-` | Text size |
 | `Alt` + drag | Move the window (there is no title bar) |
+
+Sync is off until you sign in, under `Ctrl+,`. The app worked with no account
+at all for two versions and still does — an unreachable server, a revoked token
+and a failed request all leave you with a working notepad.
 
 `Esc` and `Ctrl+H` are the two ways out and they are not the same. `Esc` leaves
 the note on screen and only stops typing into it, which is what you want with a
@@ -82,3 +95,14 @@ back to hiding, so it always does something.
 **Both exits fire on keyup.** Acting on keydown transfers focus while the key
 is still held, and the *keyup* then lands in the other window — a fullscreen
 video would take the `Esc` as its own and leave fullscreen.
+
+**Ids are UUIDs, minted on the device.** Autoincrement ids cannot survive sync:
+two devices offline both pick the same next id for different notes and collide
+the moment they meet.
+
+**Deletes are tombstones.** A row that simply vanished is indistinguishable from
+one a device has not seen yet, and the next pull would resurrect it.
+
+**One sync loop, not three.** `shared/engine.ts` holds the order of operations
+and every client calls it. Two hand-maintained copies of a sync loop drift, and
+the symptom is a note that quietly stops arriving on one device.

@@ -1,0 +1,316 @@
+/*
+ * Quiet on a phone.
+ *
+ * Same palette as the desktop, but no glass: there is nothing behind a phone
+ * app to show through, so translucency would only cost legibility. Solid dark,
+ * one blue, generous tap targets.
+ */
+
+:root {
+  --blue: #3b6fd4;
+  --blue-soft: #6d9bf5;
+  --bg: #121214;
+  --raised: #1b1b1f;
+  --hairline: rgba(255, 255, 255, 0.1);
+  --text: #f2f2f0;
+  --text-dim: #8d8d8a;
+  --text-faint: #5f5f5d;
+  color-scheme: dark;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  /* iOS bounces the whole page otherwise, which looks broken in standalone. */
+  overscroll-behavior: none;
+}
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  /* The notch and the home indicator. Without these the title sits under the
+     status bar once the app is installed to the home screen. */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+
+.centred {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  padding: 32px 24px calc(32px + env(safe-area-inset-bottom));
+  text-align: center;
+}
+
+/* --- chrome ------------------------------------------------------------- */
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.brand-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--blue);
+}
+.brand-dot.offline { background: #7a6a4a; }
+.brand-dot.error { background: #e8a0a0; }
+.brand-dot.syncing { animation: pulse 1s ease-in-out infinite; }
+
+@keyframes pulse {
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-dot.syncing { animation: none; opacity: 0.6; }
+}
+
+/* 44px is Apple's minimum comfortable tap target, and it is not negotiable on
+   a screen you use one-handed. */
+.icon {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 10px;
+  background: none;
+  border: none;
+  color: var(--blue-soft);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.icon.danger {
+  color: #e8a0a0;
+}
+
+/* --- list --------------------------------------------------------------- */
+
+.list {
+  flex: 1;
+  list-style: none;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.row {
+  display: block;
+  width: 100%;
+  padding: 13px 16px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--hairline);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:active {
+  background: var(--raised);
+}
+
+.row-title {
+  display: block;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--blue-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row-preview {
+  display: block;
+  margin-top: 3px;
+  font-size: 13px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.empty {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  color: var(--text-faint);
+  font-size: 14px;
+}
+
+.fab {
+  position: fixed;
+  right: 20px;
+  bottom: calc(20px + env(safe-area-inset-bottom));
+  width: 56px;
+  height: 56px;
+  border: none;
+  border-radius: 50%;
+  background: var(--blue);
+  color: #fff;
+  font-size: 28px;
+  line-height: 1;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+}
+
+.fab:active {
+  transform: scale(0.95);
+}
+
+/* --- editor ------------------------------------------------------------- */
+
+/* 16px minimum on both fields: iOS Safari zooms the whole page when you focus
+   an input smaller than that, and never zooms back out. */
+.title-field {
+  width: 100%;
+  padding: 16px 16px 6px;
+  background: none;
+  border: none;
+  color: var(--blue);
+  font-family: inherit;
+  font-size: 25px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.body-field {
+  flex: 1;
+  width: 100%;
+  padding: 6px 16px calc(16px + env(safe-area-inset-bottom));
+  background: none;
+  border: none;
+  resize: none;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 16px;
+  line-height: 1.65;
+}
+
+.title-field:focus,
+.body-field:focus,
+.field:focus {
+  outline: none;
+}
+
+.title-field::placeholder,
+.body-field::placeholder {
+  color: var(--text-faint);
+}
+
+/* --- sign in ------------------------------------------------------------ */
+
+.lead {
+  margin: 18px 0 20px;
+  font-size: 15px;
+  color: var(--text-dim);
+}
+
+.muted {
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--text-faint);
+}
+
+.field {
+  width: 100%;
+  max-width: 320px;
+  padding: 13px 14px;
+  background: var(--raised);
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 16px;
+  text-align: center;
+}
+
+.field:focus {
+  border-color: var(--blue);
+}
+
+.btn {
+  width: 100%;
+  max-width: 320px;
+  min-height: 46px;
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--blue);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  background: var(--raised);
+  color: var(--text-faint);
+}
+
+.btn.ghost {
+  background: none;
+  border: 1px solid var(--hairline);
+  color: var(--blue-soft);
+  font-weight: 400;
+}
+
+.code {
+  margin: 8px 0;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 30px;
+  letter-spacing: 0.18em;
+  color: var(--blue-soft);
+}
+
+.account {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--hairline);
+  background: var(--raised);
+}
+
+.account-email {
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.account .btn {
+  max-width: none;
+}

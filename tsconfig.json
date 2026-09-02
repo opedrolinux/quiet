@@ -23,6 +23,8 @@
   "include": [
     "src",
     "shared",
-    "server"
+    "server",
+    "mobile/src",
+    "mobile/vite.config.ts"
   ]
 }

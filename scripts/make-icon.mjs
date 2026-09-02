@@ -5,14 +5,23 @@
  * blue bar (the first line, which is always the title) above three plain grey
  * ones. Nothing else — same rule as the interface.
  *
+ * Writes the 1024px master for `pnpm tauri icon`, plus the two sizes the phone
+ * PWA needs in its manifest.
+ *
  * Run: node scripts/make-icon.mjs   then: pnpm tauri icon src-tauri/icons/source.png
  */
 import { deflateSync } from "node:zlib";
 import { writeFileSync, mkdirSync } from "node:fs";
+import { dirname } from "node:path";
 
-const SIZE = 1024;
-const SS = 3; // supersample factor; 3x is plenty for these shapes
-const N = SIZE * SS;
+const OUTPUTS = [
+  { size: 1024, path: "src-tauri/icons/source.png" },
+  { size: 512, path: "mobile/public/icon-512.png" },
+  { size: 192, path: "mobile/public/icon-192.png" },
+  // Maskable: iOS and Android crop to their own shape, so the mark has to
+  // survive losing its corners.
+  { size: 180, path: "mobile/public/apple-touch-icon.png" },
+];
 
 /** Signed "inside" test for a rounded rectangle, in supersampled units. */
 function inRounded(px, py, x, y, w, h, r) {
@@ -23,7 +32,11 @@ function inRounded(px, py, x, y, w, h, r) {
   return Math.hypot(px - cx, py - cy) <= r;
 }
 
-const S = (v) => v * SS; // design units (1024 space) -> supersampled
+function render(SIZE) {
+const SS = SIZE >= 512 ? 3 : 4; // more supersampling at small sizes
+const N = SIZE * SS;
+const K = SIZE / 1024; // design units are authored in 1024 space
+const S = (v) => v * K * SS;
 
 const TILE = { x: S(24), y: S(24), w: S(976), h: S(976), r: S(216) };
 const BORDER = S(6);
@@ -125,13 +138,17 @@ for (let y = 0; y < SIZE; y++) {
   px.copy(raw, y * (SIZE * 4 + 1) + 1, y * SIZE * 4, (y + 1) * SIZE * 4);
 }
 
-const png = Buffer.concat([
+return Buffer.concat([
   Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
   chunk("IHDR", ihdr),
   chunk("IDAT", deflateSync(raw, { level: 9 })),
   chunk("IEND", Buffer.alloc(0)),
 ]);
+}
 
-mkdirSync("src-tauri/icons", { recursive: true });
-writeFileSync("src-tauri/icons/source.png", png);
-console.log(`wrote src-tauri/icons/source.png (${SIZE}x${SIZE}, ${png.length} bytes)`);
+for (const { size, path } of OUTPUTS) {
+  const png = render(size);
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, png);
+  console.log(`wrote ${path} (${size}x${size}, ${png.length} bytes)`);
+}

@@ -1,4 +1,4 @@
-import type { LocalNote, Note } from "./types";
+import type { LocalNote, Note } from "./types.ts";
 
 /**
  * The reconciliation rules, as pure functions.

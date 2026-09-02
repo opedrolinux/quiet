@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "server": "node server/src/index.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "dev:mobile": "vite --config mobile/vite.config.ts",
+    "build:mobile": "vite build --config mobile/vite.config.ts"
   },
   "dependencies": {
     "@codemirror/commands": "^6.7.1",
