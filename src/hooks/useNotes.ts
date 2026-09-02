@@ -1,0 +1,128 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  createNote,
+  deleteNote,
+  listNotes,
+  saveNote,
+  type Note,
+} from "../lib/db";
+
+const SAVE_DEBOUNCE_MS = 400;
+
+/**
+ * Owns the note list, which note is active, and persistence.
+ *
+ * There is no save button anywhere in the app, so every path out of the editor
+ * has to flush: switching notes, hiding the window, and closing it.
+ */
+export function useNotes() {
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [activeId, setActiveId] = useState<number | null>(null);
+  const [ready, setReady] = useState(false);
+
+  // Kept in refs so the flush path never depends on a stale render.
+  const pending = useRef<{ id: number; body: string } | null>(null);
+  const timer = useRef<number | null>(null);
+  const activeIdRef = useRef<number | null>(null);
+  activeIdRef.current = activeId;
+
+  const flush = useCallback(async () => {
+    if (timer.current !== null) {
+      window.clearTimeout(timer.current);
+      timer.current = null;
+    }
+    const p = pending.current;
+    if (!p) return;
+    pending.current = null;
+    await saveNote(p.id, p.body);
+  }, []);
+
+  // StrictMode invokes effects twice in dev; without this guard the very first
+  // launch seeds two empty notes instead of one.
+  const booted = useRef(false);
+
+  useEffect(() => {
+    if (booted.current) return;
+    booted.current = true;
+    (async () => {
+      let rows = await listNotes();
+      if (rows.length === 0) {
+        await createNote();
+        rows = await listNotes();
+      }
+      setNotes(rows);
+      setActiveId(rows[0].id);
+      setReady(true);
+    })();
+  }, []);
+
+  // Losing unsaved keystrokes on quit would be unforgivable in a notes app.
+  useEffect(() => {
+    const onLeave = () => void flush();
+    window.addEventListener("beforeunload", onLeave);
+    window.addEventListener("blur", onLeave);
+    return () => {
+      window.removeEventListener("beforeunload", onLeave);
+      window.removeEventListener("blur", onLeave);
+    };
+  }, [flush]);
+
+  const edit = useCallback((body: string) => {
+    const id = activeIdRef.current;
+    if (id === null) return;
+
+    // Update in place rather than re-sorting: reordering the list under the
+    // user's cursor while they type is disorienting. Order settles on reload.
+    setNotes((prev) =>
+      prev.map((n) =>
+        n.id === id ? { ...n, body, updated_at: Date.now() } : n,
+      ),
+    );
+
+    pending.current = { id, body };
+    if (timer.current !== null) window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => {
+      void flush();
+    }, SAVE_DEBOUNCE_MS);
+  }, [flush]);
+
+  const select = useCallback(
+    async (id: number) => {
+      if (id === activeIdRef.current) return;
+      await flush();
+      setActiveId(id);
+    },
+    [flush],
+  );
+
+  const cycle = useCallback(
+    async (delta: 1 | -1) => {
+      if (notes.length < 2) return;
+      const i = notes.findIndex((n) => n.id === activeIdRef.current);
+      const next = notes[(i + delta + notes.length) % notes.length];
+      await select(next.id);
+    },
+    [notes, select],
+  );
+
+  const create = useCallback(async () => {
+    await flush();
+    const id = await createNote();
+    setNotes(await listNotes());
+    setActiveId(id);
+  }, [flush]);
+
+  const remove = useCallback(async () => {
+    const id = activeIdRef.current;
+    if (id === null || notes.length < 2) return;
+    pending.current = null;
+    await deleteNote(id);
+    const rows = await listNotes();
+    setNotes(rows);
+    setActiveId(rows[0].id);
+  }, [notes.length]);
+
+  const active = notes.find((n) => n.id === activeId) ?? null;
+
+  return { notes, active, activeId, ready, edit, select, cycle, create, remove, flush };
+}

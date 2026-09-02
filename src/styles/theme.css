@@ -1,0 +1,247 @@
+/*
+ * Dark smoked glass, bright text. The mockup rounds in design/ proved this is
+ * the only combination that stays readable: every attempt at lighter, more
+ * transparent glass washed the text out over a bright video. --glass-alpha is
+ * therefore floored in Settings rather than allowed to run to zero.
+ */
+:root {
+  /* Dark grey glass, one blue. The blue is the only colour in the app:
+     caret, active-note bar, selection, slider. Everything else is grey. */
+  --blue: #3b6fd4;
+  /* A lighter step for small blue text. #3b6fd4 is ~3.9:1 on this glass:
+     fine for the large bold title, under AA for 12px switcher rows. */
+  --blue-soft: #6d9bf5;
+  --glass: 18, 18, 20;
+  --glass-alpha: 0.72;
+  --hairline: rgba(255, 255, 255, 0.14);
+  --text: #f2f2f0;
+  --text-dim: #8d8d8a;
+  --accent: var(--blue);
+  --caret: var(--blue);
+  --title-size: 26px;
+  --body-size: 13.5px;
+  --switcher-w: 110px;
+  --pad: 20px;
+  --radius: 10px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  /* Transparent so the Windows acrylic behind the webview shows through. */
+  background: transparent;
+  color: var(--text);
+  font-family: "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  cursor: default;
+  user-select: none;
+}
+
+.app {
+  display: flex;
+  height: 100%;
+  background: rgba(var(--glass), var(--glass-alpha));
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+/* --- switcher ---------------------------------------------------------- */
+
+/* Docked to the left. The OS window grows leftward by exactly this width, so
+   the editor never moves on screen and the text never reflows. */
+.switcher {
+  flex: 0 0 var(--switcher-w);
+  width: var(--switcher-w);
+  padding: var(--pad) 0 var(--pad) 12px;
+  border-right: 1px solid var(--hairline);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.switcher-item {
+  position: relative;
+  padding: 7px 10px 7px 10px;
+  font-size: 12px;
+  color: rgba(109, 155, 245, 0.55);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.switcher-item.active {
+  color: var(--blue-soft);
+}
+
+/* An accent bar, never a filled background — a filled row would read as a
+   button and the whole app is meant to have none. */
+.switcher-item.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 15px;
+  background: var(--accent);
+}
+
+/* --- editor ------------------------------------------------------------ */
+
+.editor {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.cm-editor {
+  height: 100%;
+  background: transparent !important;
+  color: var(--text);
+  font-size: var(--body-size);
+  user-select: text;
+}
+
+.cm-editor.cm-focused {
+  outline: none !important;
+}
+
+.cm-scroller {
+  font-family: "Cascadia Mono", "Consolas", ui-monospace, monospace;
+  line-height: 1.75;
+  padding: var(--pad);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+/* CodeMirror sets its own line-height further down the tree, so setting it
+   only on .cm-scroller silently does nothing. */
+.cm-content {
+  padding: 0 !important;
+  /* !important is required: CodeMirror injects its own stylesheet at
+     runtime, so it lands after this file in the head and would otherwise
+     win on equal specificity. Without a drawSelection extension the native
+     caret is what's drawn, so this is the rule that actually decides. */
+  caret-color: var(--caret) !important;
+  line-height: 1.75;
+}
+
+.cm-line {
+  padding: 0 !important;
+  line-height: 1.75;
+}
+
+/* The first line renders as the title. No H1 button, no markup — this is the
+   whole formatting system. */
+.cm-title {
+  font-family: "Segoe UI", system-ui, sans-serif;
+  font-size: var(--title-size);
+  font-weight: 700;
+  line-height: 1.3;
+  padding-bottom: 10px !important;
+  color: var(--blue);
+}
+
+/* CodeMirror draws its own caret, so both the native caret-color above
+   and this border need setting or the two disagree. */
+.cm-cursor,
+.cm-cursor-primary,
+.cm-dropCursor,
+.cm-editor .cm-cursor {
+  border-left-color: var(--caret) !important;
+  border-left-width: 2px !important;
+}
+
+/* The editor element itself also carries a caret-color in CM's base theme. */
+.cm-editor,
+.cm-editor .cm-content,
+.cm-editor .cm-line {
+  caret-color: var(--caret) !important;
+}
+
+.cm-selectionBackground,
+.cm-editor ::selection {
+  background: rgba(59, 111, 212, 0.30) !important;
+}
+
+/* --- resize handles ---------------------------------------------------- */
+
+/* decorations:false costs the native resize borders, so they are rebuilt here.
+   6px is about the smallest that is not annoying to hit. */
+.rz {
+  position: fixed;
+  z-index: 10;
+}
+.rz-e { top: 0; right: 0; width: 6px; height: 100%; cursor: ew-resize; }
+.rz-w { top: 0; left: 0; width: 6px; height: 100%; cursor: ew-resize; }
+.rz-s { bottom: 0; left: 0; height: 6px; width: 100%; cursor: ns-resize; }
+.rz-n { top: 0; left: 0; height: 6px; width: 100%; cursor: ns-resize; }
+.rz-se { bottom: 0; right: 0; width: 12px; height: 12px; cursor: nwse-resize; }
+.rz-sw { bottom: 0; left: 0; width: 12px; height: 12px; cursor: nesw-resize; }
+
+/* --- settings ---------------------------------------------------------- */
+
+.settings {
+  position: fixed;
+  right: 14px;
+  bottom: 14px;
+  width: 210px;
+  padding: 14px;
+  background: rgba(var(--glass), 0.96);
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  font-size: 11.5px;
+  color: var(--text-dim);
+  z-index: 20;
+}
+
+.settings label {
+  display: block;
+  margin-bottom: 11px;
+}
+
+.settings label:last-child {
+  margin-bottom: 0;
+}
+
+.settings input[type="range"],
+.settings select {
+  width: 100%;
+  margin-top: 5px;
+  accent-color: var(--blue);
+  background: transparent;
+  color: var(--text);
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+}
+
+.settings input[type="range"] {
+  border: none;
+}
+
+.hint {
+  position: fixed;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  font-size: 11px;
+  color: var(--text-dim);
+  pointer-events: none;
+}
+
+/* Shown while a delete is armed. The one place the app raises its voice. */
+.hint.warn {
+  color: #e8a0a0;
+}
