@@ -114,6 +114,15 @@ body {
   cursor: pointer;
 }
 
+.bar-actions {
+  display: flex;
+  align-items: center;
+}
+
+.icon:disabled {
+  color: var(--text-faint);
+}
+
 .icon.danger {
   color: #e8a0a0;
 }

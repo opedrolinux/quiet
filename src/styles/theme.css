@@ -461,3 +461,23 @@ body {
 .hint.warn {
   color: #e8a0a0;
 }
+
+/* Sync now sits beside Sign out; the destructive one recedes. */
+.account-row {
+  display: flex;
+  gap: 6px;
+}
+
+.account-row .account-btn {
+  flex: 1;
+  margin-top: 0;
+}
+
+.account-btn.subtle {
+  color: var(--text-faint);
+}
+
+.account-btn.subtle:hover:not(:disabled) {
+  color: var(--text-dim);
+}
+

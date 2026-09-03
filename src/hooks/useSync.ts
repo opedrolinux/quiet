@@ -19,7 +19,14 @@ import { acceptNote, dirtyNotes, getNote, getSetting, markPushed, setSetting } f
  */
 
 const POLL_SIGNIN_MS = 2_000;
-const PERIODIC_MS = 30_000;
+/*
+ * The receiving device sets the latency, not the sending one: a change is only
+ * seen when the other end next asks for it. Against a server on your own
+ * machine a round trip costs about 200ms, so a sweep this frequent is cheap
+ * and it is what makes an edit land on the other screen while you are still
+ * looking at it.
+ */
+const PERIODIC_MS = 2_000;
 
 const KEY_URL = "sync.url";
 const KEY_TOKEN = "sync.token";
@@ -126,10 +133,16 @@ export function useSync(onRemoteChange: (changedIds: string[]) => void) {
     // Summoning the window is the moment you most want to be looking at what
     // the other device wrote.
     const onFocus = () => void runSync();
+    // Leaving is as important as arriving. Esc and Ctrl+H already flush and
+    // push, but walking away with the mouse used to push nothing, so the note
+    // sat here until the sweep caught it.
+    const onBlur = () => void runSync();
     window.addEventListener("focus", onFocus);
+    window.addEventListener("blur", onBlur);
     const timer = window.setInterval(() => void runSync(), PERIODIC_MS);
     return () => {
       window.removeEventListener("focus", onFocus);
+      window.removeEventListener("blur", onBlur);
       window.clearInterval(timer);
     };
   }, [runSync]);

@@ -5,7 +5,7 @@ import { createNote, deleteNote, listNotes, saveNote } from "./store";
 import { useSync } from "./useSync";
 
 const SAVE_DEBOUNCE_MS = 400;
-const SYNC_AFTER_MS = 2_500;
+const SYNC_AFTER_MS = 800;
 
 /**
  * Quiet on a phone.
@@ -163,9 +163,21 @@ function NoteList({
           <span className={"brand-dot " + sync.state.status} />
           Quiet
         </div>
-        <button className="icon" onClick={() => setShowAccount((v) => !v)} aria-label="Account">
-          ···
-        </button>
+        <div className="bar-actions">
+          {/* On a phone the sweep can be behind a locked screen or a suspended
+              tab, so the one thing worth being able to do by hand is ask. */}
+          <button
+            className="icon"
+            onClick={() => void sync.sync()}
+            disabled={sync.state.status === "syncing"}
+            aria-label="Sync now"
+          >
+            ⟳
+          </button>
+          <button className="icon" onClick={() => setShowAccount((v) => !v)} aria-label="Account">
+            ···
+          </button>
+        </div>
       </header>
 
       {showAccount && (

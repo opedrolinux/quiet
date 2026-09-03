@@ -14,6 +14,9 @@ import { useSync } from "./hooks/useSync";
 /** How long the switcher stays out after the last Ctrl+Arrow before retracting. */
 const RETRACT_MS = 1000;
 
+/** Quiet spell after the last keystroke before the note is pushed. */
+const POST_EDIT_SYNC_MS = 800;
+
 export default function App() {
   const notes = useNotes();
   const { settings, update } = useSettings();
@@ -57,7 +60,7 @@ export default function App() {
       if (syncSoon.current !== null) window.clearTimeout(syncSoon.current);
       syncSoon.current = window.setTimeout(() => {
         void notes.flush().then(sync.syncNow);
-      }, 2500);
+      }, POST_EDIT_SYNC_MS);
     },
     [notes.edit, notes.flush, sync.syncNow],
   );
@@ -190,6 +193,7 @@ export default function App() {
             onSignIn={(email) => void sync.signIn(email)}
             onCancel={sync.cancelSignIn}
             onSignOut={() => void sync.signOut()}
+            onSyncNow={() => void notes.flush().then(sync.syncNow)}
           />
         </Settings>
       )}

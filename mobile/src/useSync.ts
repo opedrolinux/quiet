@@ -23,7 +23,7 @@ import {
 const BASE = typeof location !== "undefined" ? location.origin : "";
 
 const POLL_SIGNIN_MS = 2_000;
-const PERIODIC_MS = 60_000;
+const PERIODIC_MS = 2_000;
 
 const KEY_TOKEN = "sync.token";
 const KEY_EMAIL = "sync.email";

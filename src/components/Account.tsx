@@ -7,6 +7,7 @@ type Props = {
   onSignIn: (email: string) => void;
   onCancel: () => void;
   onSignOut: () => void;
+  onSyncNow: () => void;
 };
 
 const STATUS_LABEL: Record<SyncState["status"], string> = {
@@ -25,7 +26,7 @@ const STATUS_LABEL: Record<SyncState["status"], string> = {
  * one input, and a signed-in one shows a single line of text. There is no
  * account screen, because there is no screen.
  */
-export function Account({ state, onSetUrl, onSignIn, onCancel, onSignOut }: Props) {
+export function Account({ state, onSetUrl, onSignIn, onCancel, onSignOut, onSyncNow }: Props) {
   const [url, setUrl] = useState(state.url);
   const [email, setEmail] = useState("");
 
@@ -44,9 +45,22 @@ export function Account({ state, onSetUrl, onSignIn, onCancel, onSignOut }: Prop
             {state.email}
           </div>
           <div className="account-status">{state.detail || STATUS_LABEL[state.status]}</div>
-          <button className="account-btn" onMouseDown={onSignOut}>
-            Sign out
-          </button>
+          {/* The sweep is two seconds away at worst, so this is not here out of
+              necessity — it is here so that when you are waiting on a note from
+              the other device you have something to press instead of guessing
+              whether the app is doing anything. */}
+          <div className="account-row">
+            <button
+              className="account-btn"
+              disabled={state.status === "syncing"}
+              onMouseDown={onSyncNow}
+            >
+              {state.status === "syncing" ? "Syncing…" : "Sync now"}
+            </button>
+            <button className="account-btn subtle" onMouseDown={onSignOut}>
+              Sign out
+            </button>
+          </div>
         </>
       ) : state.pending ? (
         <>
