@@ -43,6 +43,38 @@ export function useHotkeys(h: Handlers) {
         return;
       }
 
+      /*
+       * Punctuation is matched on the physical key, before anything else.
+       *
+       * e.key reports what the layout prints, which for , = and - is not the
+       * same key everywhere: on a Brazilian ABNT2 keyboard Ctrl+, arrived here
+       * as the text-size binding instead of settings, which locked the user
+       * out of the only screen that can sign them in. e.code names the
+       * physical key and does not move with the layout. ABNT2 also prints a
+       * comma where a US numpad prints a decimal point, so that key counts as
+       * a comma too.
+       */
+      switch (e.code) {
+        case "Comma":
+        case "NumpadComma":
+        case "NumpadDecimal":
+          e.preventDefault();
+          h.toggleSettings();
+          return;
+        case "Equal":
+        case "NumpadAdd":
+          e.preventDefault();
+          h.bumpText(0.5);
+          return;
+        case "Minus":
+        case "NumpadSubtract":
+          e.preventDefault();
+          h.bumpText(-0.5);
+          return;
+      }
+
+      // Fallback for layouts that reach these characters from some other
+      // physical key, e.g. with Shift or AltGr.
       switch (e.key) {
         case "ArrowDown":
           e.preventDefault();
