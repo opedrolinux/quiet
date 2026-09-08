@@ -11,7 +11,9 @@
     "server": "node server/src/index.ts",
     "typecheck": "tsc --noEmit",
     "dev:mobile": "vite --config mobile/vite.config.ts",
-    "build:mobile": "vite build --config mobile/vite.config.ts"
+    "build:mobile": "vite build --config mobile/vite.config.ts",
+    "test": "node server/test.ts",
+    "serve": "pwsh -NoProfile -File scripts/serve.ps1"
   },
   "dependencies": {
     "@codemirror/commands": "^6.7.1",

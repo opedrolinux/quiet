@@ -22,6 +22,29 @@ export type ApiError = { kind: "offline" | "unauthorized" | "server"; detail: st
 export type Result<T> = { ok: true; value: T } | { ok: false; error: ApiError };
 
 const ok = <T,>(value: T): Result<T> => ({ ok: true, value });
+/*
+ * "Failed to fetch" is what the browser says and it tells the user nothing:
+ * the same three words cover a stopped server, a typo in the address and a
+ * flat wifi. By far the most common cause here is that the server is simply
+ * not running, and that has a specific remedy worth naming.
+ */
+function describeNetworkFailure(err: unknown, base: string): string {
+  const raw = err instanceof Error ? err.message : String(err);
+  if (err instanceof Error && err.name === "AbortError") return "the server did not answer in time";
+
+  let local = false;
+  try {
+    const host = new URL(base).hostname;
+    local = host === "localhost" || host === "127.0.0.1" || host === "::1";
+  } catch {
+    return raw;
+  }
+  if (!/fetch|network|connect|refused/i.test(raw)) return raw;
+  return local
+    ? "server not running — start it with: pnpm server"
+    : "cannot reach the server at " + base;
+}
+
 const fail = (kind: ApiError["kind"], detail: string): Result<never> => ({
   ok: false,
   error: { kind, detail },
@@ -62,7 +85,7 @@ async function call<T>(
     return ok(body as T);
   } catch (err) {
     // Unreachable, DNS failure, TLS rejection, timeout — all the same to us.
-    return fail("offline", err instanceof Error ? err.message : String(err));
+    return fail("offline", describeNetworkFailure(err, base));
   } finally {
     clearTimeout(timer);
   }

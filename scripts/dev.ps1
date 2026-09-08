@@ -17,4 +17,9 @@ $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' +
             [Environment]::GetEnvironmentVariable('Path', 'User')
 
 Set-Location (Split-Path $PSScriptRoot -Parent)
+
+# Sync is dead without the server, and the app gives no clue which of the two
+# is missing. Starting it here costs nothing when it is already up.
+& (Join-Path $PSScriptRoot 'serve.ps1') -Background
+
 pnpm tauri dev
