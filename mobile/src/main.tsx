@@ -1,7 +1,12 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import { trackViewport } from "./viewport";
 import "./styles.css";
+
+// Before the first render, so the app is never laid out against a height it is
+// about to be told is wrong.
+trackViewport();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

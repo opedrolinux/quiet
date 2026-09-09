@@ -38,12 +38,25 @@ body {
   -webkit-font-smoothing: antialiased;
   /* iOS bounces the whole page otherwise, which looks broken in standalone. */
   overscroll-behavior: none;
+  /* Pinned, so the document itself can never scroll. Left scrollable, iOS
+     answers a focused field by scrolling the whole page up to reveal it, which
+     takes the header off the top of the screen and leaves nothing to scroll it
+     back. Refusing the scroll means the only thing the keyboard can change is
+     the height, and viewport.ts reports that as --app-h. */
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
 }
 
 .screen {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  /* Not 100%: that is the window, which on iOS still counts the strip the
+     keyboard is drawn over. --app-h is what is left to look at. */
+  height: var(--app-h, 100%);
+  /* The FAB anchors to this box rather than to the window, so it rides above
+     the keyboard instead of hiding behind it. */
+  position: relative;
   /* The notch and the home indicator. Without these the title sits under the
      status bar once the app is installed to the home screen. */
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
@@ -55,7 +68,10 @@ body {
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  height: 100%;
+  /* Same reasoning as .screen: the email field must stay visible once the
+     keyboard covers the bottom half of the phone. */
+  height: var(--app-h, 100%);
+  overflow-y: auto;
   padding: 32px 24px calc(32px + env(safe-area-inset-bottom));
   text-align: center;
 }
@@ -117,6 +133,33 @@ body {
 .bar-actions {
   display: flex;
   align-items: center;
+}
+
+/* Takes the bar over from the wordmark while you are searching: the brand is
+   the least useful thing on screen at the moment you are looking for a note. */
+.search-field {
+  flex: 1;
+  /* Without this the flex item refuses to shrink below its content and pushes
+     Done off the edge of a narrow phone. */
+  min-width: 0;
+  padding: 9px 12px;
+  background: var(--raised);
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: inherit;
+  /* 16px, like every other field here: below that iOS zooms the page on focus
+     and never zooms back out. */
+  font-size: 16px;
+}
+
+.search-field:focus {
+  outline: none;
+  border-color: var(--blue);
+}
+
+.search-field::placeholder {
+  color: var(--text-faint);
 }
 
 .icon:disabled {
@@ -182,7 +225,9 @@ body {
 }
 
 .fab {
-  position: fixed;
+  /* Absolute against .screen, not fixed against the window: fixed would put it
+     under the keyboard the moment the search field is focused. */
+  position: absolute;
   right: 20px;
   bottom: calc(20px + env(safe-area-inset-bottom));
   width: 56px;

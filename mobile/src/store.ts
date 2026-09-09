@@ -70,10 +70,23 @@ export function getNote(id: string): Promise<LocalNote | undefined> {
   return run<LocalNote | undefined>(NOTES, "readonly", (s) => s.get(id));
 }
 
-export async function createNote(): Promise<string> {
-  const note = newNote();
-  await put({ ...note, dirty: true, server_seq: 0 });
-  return note.id;
+/**
+ * Mint a note now; write it in the background.
+ *
+ * The note is returned rather than awaited because of the keyboard. iOS opens
+ * it only for a `focus()` that happens inside the tap that asked for it, and
+ * awaiting a round trip to IndexedDB first — twice, counting the reload of the
+ * list — ends the gesture long before the editor exists to be focused. You get
+ * a blank note and have to tap a second time to type into it.
+ *
+ * Everything the editor needs is known synchronously (a UUID and two
+ * timestamps), so the caller can render straight into it and let `saved` land
+ * whenever it lands. A write that fails leaves an unsaved empty note, which is
+ * the same thing you get by opening a new note and typing nothing.
+ */
+export function createNote(): { note: LocalNote; saved: Promise<void> } {
+  const note: LocalNote = { ...newNote(), dirty: true, server_seq: 0 };
+  return { note, saved: put(note) };
 }
 
 export async function saveNote(id: string, body: string): Promise<void> {

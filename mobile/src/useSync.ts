@@ -112,7 +112,13 @@ export function useSync(onRemoteChange: () => void) {
     };
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("online", onVisible);
-    const timer = window.setInterval(() => void sync(), PERIODIC_MS);
+    // Only while you are looking at it. A phone that is in a pocket has
+    // nothing to show you, and a sweep every two seconds against a cellular
+    // radio is a real cost paid for a screen nobody is reading — the
+    // visibilitychange above already covers the moment you come back.
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void sync();
+    }, PERIODIC_MS);
     return () => {
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("online", onVisible);

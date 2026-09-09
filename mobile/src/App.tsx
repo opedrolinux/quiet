@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { deriveTitle } from "../../shared/title";
 import type { LocalNote } from "../../shared/types";
 import { createNote, deleteNote, listNotes, saveNote } from "./store";
@@ -30,10 +30,31 @@ function splitBody(body: string): [title: string, rest: string] {
 
 const joinBody = (title: string, rest: string) => (rest === "" ? title : `${title}\n${rest}`);
 
+/**
+ * The one line of context under a note's name in the list.
+ *
+ * Idle, it is the first line of the body — what makes a screen of notes all
+ * called "Untitled" navigable at all. While searching it is the line that
+ * actually matched, so a result explains itself instead of leaving you to open
+ * the note to find out why it is there.
+ */
+function previewLine(body: string, needle: string): string {
+  const lines = splitBody(body)[1].split("\n");
+  if (needle) {
+    const hit = lines.find((l) => l.trim() && l.toLowerCase().includes(needle));
+    // No hit means the match was in the title, which is already on the row.
+    if (hit) return hit.trim();
+  }
+  return lines.find((l) => l.trim())?.trim() || "—";
+}
+
 export default function App() {
   const [notes, setNotes] = useState<LocalNote[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  /* The note this tap just created, which is the only one that should open
+     with the keyboard already up. Reopening it later should not. */
+  const [freshId, setFreshId] = useState<string | null>(null);
 
   const refresh = useCallback(async () => setNotes(await listNotes()), []);
   const sync = useSync(useCallback(() => void refresh(), [refresh]));
@@ -56,8 +77,10 @@ export default function App() {
       <NoteView
         key={note.id}
         note={note}
+        openKeyboard={note.id === freshId}
         onBack={() => {
           setOpenId(null);
+          setFreshId(null);
           void refresh();
         }}
         onChanged={refresh}
@@ -65,6 +88,7 @@ export default function App() {
         onDelete={async () => {
           await deleteNote(note.id);
           setOpenId(null);
+          setFreshId(null);
           await refresh();
           void sync.sync();
         }}
@@ -76,11 +100,22 @@ export default function App() {
     <NoteList
       notes={notes}
       sync={sync}
-      onOpen={setOpenId}
-      onNew={async () => {
-        const id = await createNote();
-        await refresh();
+      onOpen={(id) => {
+        setFreshId(null);
         setOpenId(id);
+      }}
+      onNew={() => {
+        /*
+         * Deliberately not awaited. The editor has to be on screen inside the
+         * tap that asked for it, because that is the only kind of focus iOS
+         * will raise the keyboard for — see `createNote`. Everything the
+         * editor needs is known now; the write to IndexedDB catches up.
+         */
+        const { note, saved } = createNote();
+        setNotes((prev) => [note, ...prev]);
+        setFreshId(note.id);
+        setOpenId(note.id);
+        void saved.then(refresh);
       }}
     />
   );
@@ -155,29 +190,79 @@ function NoteList({
   onNew: () => void;
 }) {
   const [showAccount, setShowAccount] = useState(false);
+  /* null is "not searching" — distinct from "" , which is an open field you
+     have not typed into yet and which must still show every note. */
+  const [query, setQuery] = useState<string | null>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const searching = query !== null;
+
+  // Focus inside the commit, for the same reason the new-note title does.
+  useLayoutEffect(() => {
+    if (searching) searchRef.current?.focus();
+  }, [searching]);
+
+  const needle = (query ?? "").trim().toLowerCase();
+  const shown = needle ? notes.filter((n) => n.body.toLowerCase().includes(needle)) : notes;
 
   return (
     <div className="screen">
       <header className="bar">
-        <div className="brand">
-          <span className={"brand-dot " + sync.state.status} />
-          Quiet
-        </div>
-        <div className="bar-actions">
-          {/* On a phone the sweep can be behind a locked screen or a suspended
-              tab, so the one thing worth being able to do by hand is ask. */}
-          <button
-            className="icon"
-            onClick={() => void sync.sync()}
-            disabled={sync.state.status === "syncing"}
-            aria-label="Sync now"
-          >
-            ⟳
-          </button>
-          <button className="icon" onClick={() => setShowAccount((v) => !v)} aria-label="Account">
-            ···
-          </button>
-        </div>
+        {searching ? (
+          <>
+            <input
+              ref={searchRef}
+              className="search-field"
+              value={query}
+              placeholder="Search notes"
+              // A phone keyboard would otherwise capitalise and autocorrect
+              // what you are trying to match against text already written.
+              autoCapitalize="none"
+              autoCorrect="off"
+              autoComplete="off"
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            <button className="icon" onClick={() => setQuery(null)} aria-label="Close search">
+              Done
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="brand">
+              <span className={"brand-dot " + sync.state.status} />
+              Quiet
+            </div>
+            <div className="bar-actions">
+              <button
+                className="icon"
+                onClick={() => {
+                  setShowAccount(false);
+                  setQuery("");
+                }}
+                aria-label="Search notes"
+              >
+                ⌕
+              </button>
+              {/* On a phone the sweep can be behind a locked screen or a
+                  suspended tab, so the one thing worth being able to do by
+                  hand is ask. */}
+              <button
+                className="icon"
+                onClick={() => void sync.sync()}
+                disabled={sync.state.status === "syncing"}
+                aria-label="Sync now"
+              >
+                ⟳
+              </button>
+              <button
+                className="icon"
+                onClick={() => setShowAccount((v) => !v)}
+                aria-label="Account"
+              >
+                ···
+              </button>
+            </div>
+          </>
+        )}
       </header>
 
       {showAccount && (
@@ -190,23 +275,18 @@ function NoteList({
         </div>
       )}
 
-      {notes.length === 0 ? (
-        <p className="empty">No notes yet.</p>
+      {shown.length === 0 ? (
+        <p className="empty">{needle ? "Nothing matches." : "No notes yet."}</p>
       ) : (
         <ul className="list">
-          {notes.map((n) => {
-            const [, rest] = splitBody(n.body);
-            return (
-              <li key={n.id}>
-                <button className="row" onClick={() => onOpen(n.id)}>
-                  <span className="row-title">{deriveTitle(n.body)}</span>
-                  {/* One line of context, so a list of notes called "Untitled"
-                      is still navigable. */}
-                  <span className="row-preview">{rest.trim().split("\n")[0] || "—"}</span>
-                </button>
-              </li>
-            );
-          })}
+          {shown.map((n) => (
+            <li key={n.id}>
+              <button className="row" onClick={() => onOpen(n.id)}>
+                <span className="row-title">{deriveTitle(n.body)}</span>
+                <span className="row-preview">{previewLine(n.body, needle)}</span>
+              </button>
+            </li>
+          ))}
         </ul>
       )}
 
@@ -233,12 +313,14 @@ function statusLabel(status: string): string {
 
 function NoteView({
   note,
+  openKeyboard,
   onBack,
   onChanged,
   onSyncSoon,
   onDelete,
 }: {
   note: LocalNote;
+  openKeyboard: boolean;
   onBack: () => void;
   onChanged: () => Promise<void>;
   onSyncSoon: () => void;
@@ -248,6 +330,21 @@ function NoteView({
   const [title, setTitle] = useState(initial[0]);
   const [rest, setRest] = useState(initial[1]);
   const [confirming, setConfirming] = useState(false);
+  const titleRef = useRef<HTMLInputElement>(null);
+
+  /*
+   * A new note should already be waiting for the first word.
+   *
+   * The effect is a layout effect for a reason. React flushes the render
+   * caused by a click synchronously, so a layout effect still runs inside the
+   * tap that caused it — and a focus inside the tap is the only kind iOS
+   * answers by raising the keyboard. A plain `useEffect`, or an `autoFocus` on
+   * a screen reached through an `await`, both land after the gesture is over,
+   * and the caret appears with no keyboard under it.
+   */
+  useLayoutEffect(() => {
+    if (openKeyboard) titleRef.current?.focus();
+  }, [openKeyboard]);
 
   const saveTimer = useRef<number | null>(null);
   const syncTimer = useRef<number | null>(null);
@@ -322,6 +419,7 @@ function NoteView({
       </header>
 
       <input
+        ref={titleRef}
         className="title-field"
         value={title}
         placeholder="Title"
