@@ -82,6 +82,15 @@ export function Account({ state, onSetUrl, onSignIn, onCancel, onSignOut, onSync
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             onBlur={() => urlChanged && onSetUrl(url)}
+            // Saving on blur alone meant an address typed and confirmed with
+            // Enter was never stored, and the sign-in below then ran against
+            // the old one.
+            onKeyDown={(e) => {
+              if (e.key !== "Enter") return;
+              e.preventDefault();
+              e.stopPropagation();
+              if (urlChanged) onSetUrl(url);
+            }}
             spellCheck={false}
           />
           <input

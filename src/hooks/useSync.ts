@@ -29,6 +29,14 @@ const POLL_SIGNIN_MS = 2_000;
 const PERIODIC_MS = 2_000;
 
 const KEY_URL = "sync.url";
+
+/*
+ * There is exactly one address this is ever going to be for a local setup, and
+ * leaving the box empty invited typing the wrong one: 1420 is the Vite dev
+ * server the app's own window is served from, it answers, and it returns 404
+ * to every sync call. An address that is right by default cannot be mistyped.
+ */
+const DEFAULT_URL = "http://localhost:8787";
 const KEY_TOKEN = "sync.token";
 const KEY_EMAIL = "sync.email";
 const KEY_SEQ = "sync.seq";
@@ -52,6 +60,23 @@ export type SyncState = {
   pending: { requestId: string; code: string } | null;
   lastSyncedAt: number | null;
 };
+
+/*
+ * The app's own origin is never the sync server -- in dev that is the Vite
+ * server on 1420, which answers every request with a 404 and makes the setup
+ * look broken rather than misaddressed. Treat that as unset so it corrects
+ * itself instead of needing to be found and retyped.
+ */
+function usableUrl(saved: string | null | undefined): string {
+  const url = (saved ?? "").trim();
+  if (!url) return DEFAULT_URL;
+  try {
+    if (new URL(url).origin === window.location.origin) return DEFAULT_URL;
+  } catch {
+    return DEFAULT_URL;
+  }
+  return url;
+}
 
 export function useSync(onRemoteChange: (changedIds: string[]) => void) {
   const [state, setState] = useState<SyncState>({
@@ -113,7 +138,11 @@ export function useSync(onRemoteChange: (changedIds: string[]) => void) {
     if (booted.current) return;
     booted.current = true;
     (async () => {
-      const savedUrl = (await getSetting(KEY_URL)) ?? "";
+      const stored = await getSetting(KEY_URL);
+      const savedUrl = usableUrl(stored);
+      // Write the correction back, so the settings box shows what is actually
+      // in use rather than the address that was ignored.
+      if (savedUrl !== stored) await setSetting(KEY_URL, savedUrl);
       const savedToken = (await getSetting(KEY_TOKEN)) || null;
       const savedEmail = (await getSetting(KEY_EMAIL)) || null;
       url.current = savedUrl;
