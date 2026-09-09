@@ -251,12 +251,36 @@ function NoteView({
 
   const saveTimer = useRef<number | null>(null);
   const syncTimer = useRef<number | null>(null);
+  /* True between a keystroke and the save that records it. */
+  const unsaved = useRef(false);
+
+  /*
+   * Adopt a version that arrived from another device.
+   *
+   * Without this the open editor keeps whatever it held when it was opened,
+   * and the next keystroke saves that stale text over the top -- it carries
+   * the later timestamp, so last-write-wins hands it the argument and the
+   * other device's work disappears. The guard is the point: never overwrite
+   * something typed here and not yet saved.
+   */
+  useEffect(() => {
+    if (unsaved.current) return;
+    const [t, r] = splitBody(note.body);
+    setTitle(t);
+    setRest(r);
+  }, [note.body]);
 
   const queue = useCallback(
     (nextTitle: string, nextRest: string) => {
+      unsaved.current = true;
       if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
       saveTimer.current = window.setTimeout(() => {
-        void saveNote(note.id, joinBody(nextTitle, nextRest)).then(onChanged);
+        void saveNote(note.id, joinBody(nextTitle, nextRest)).then(() => {
+          // Cleared before the refresh, so that if a remote version won the
+          // merge in the meantime, the effect above is free to adopt it.
+          unsaved.current = false;
+          return onChanged();
+        });
       }, SAVE_DEBOUNCE_MS);
 
       if (syncTimer.current !== null) window.clearTimeout(syncTimer.current);
@@ -276,6 +300,7 @@ function NoteView({
   const flushAndBack = () => {
     if (saveTimer.current !== null) window.clearTimeout(saveTimer.current);
     void saveNote(note.id, joinBody(title, rest)).then(() => {
+      unsaved.current = false;
       onSyncSoon();
       onBack();
     });
